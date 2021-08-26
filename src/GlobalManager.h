@@ -40,6 +40,7 @@ public:
     float fpsUpdateCycle = 0.25;
     float lastFpsUpdate = 0;
     int fps;
+    int drawCallsPerFrame = 0;
 private:
 
     float lastReshapeTime = 0;

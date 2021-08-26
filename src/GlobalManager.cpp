@@ -35,6 +35,8 @@ void GlobalManager::render() {
     time += deltaTime;
     if (time > lastFpsUpdate + fpsUpdateCycle) {
         fps = 1.0 / deltaTime;
+        std::cout<< "FPS:" << fps << std::endl;
+
         lastFpsUpdate = time;
     }
     std::vector<GameObject *> callbackCaller = objects;
@@ -43,7 +45,11 @@ void GlobalManager::render() {
             continue;
         callbackCaller[i]->update();
         callbackCaller[i]->render();
+        drawCallsPerFrame++;
     }
+
+    std::cout<< "DrawCalls:" << drawCallsPerFrame << std::endl;
+    drawCallsPerFrame = 0;
     cleanUpObjects();
 
 //    if (time - lastReshapeTime >= deltaTime) {

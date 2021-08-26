@@ -11,6 +11,7 @@
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
+#include <random>
 
 
 #define PI        3.14159265358979323846    /* pi */
@@ -132,12 +133,48 @@ struct Transform {
     Transform(const glm::vec3 &position, const glm::vec3 &rotation, const glm::vec3 &scale) : position(position), rotation(rotation), scale(scale) {}
 };
 
+class Mesh {
+public:
+    std::vector<PnuVertexInput> vertices;
+    std::vector<uint32_t> indices;
+    glm::vec3 minBound;
+    glm::vec3 maxBound;
+    glm::vec3 size;
+
+    Mesh(std::string fileName) {
+        ModelLoader::loadPnuModel(FileLoader::getPath(fileName), vertices, indices);
+        recalculateBounds();
+    }
+
+    void recalculateBounds() {
+        minBound = glm::vec3(std::numeric_limits<float>::max());
+        maxBound = glm::vec3(std::numeric_limits<float>::min());
+        for (PnuVertexInput vertex: vertices) {
+            if (vertex.position.z < minBound.z) minBound.z = vertex.position.z;
+            else if (vertex.position.z > maxBound.z) maxBound.z = vertex.position.z;
+
+            if (vertex.position.y < minBound.y) minBound.y = vertex.position.y;
+            else if (vertex.position.y > maxBound.y) maxBound.y = vertex.position.y;
+
+            if (vertex.position.x < minBound.x) minBound.x = vertex.position.x;
+            else if (vertex.position.x > maxBound.x) maxBound.x = vertex.position.x;
+        }
+
+        size = maxBound - minBound;
+
+        std::cout << "( " << size.x << "," << size.y << "," << size.z << ")" << std::endl;
+        std::cout << "( " << minBound.x << "," << minBound.y << "," << minBound.z << ")" << std::endl;
+        std::cout << "( " << maxBound.x << "," << maxBound.y << "," << maxBound.z << ")" << std::endl;
+    }
+};
+
 class MeshRenderer : GameObject {
 public:
     Transform transform;
     glm::mat4x4 M;
-    MeshRenderer(Transform transform, std::string fileName) : transform(transform) {
-        ModelLoader::loadPnuModel(FileLoader::getPath(fileName), vertices, indices);
+    Mesh *mesh;
+
+    MeshRenderer(Transform transform, Mesh *mesh) : transform(transform), mesh(mesh) {
 
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);
@@ -146,10 +183,10 @@ public:
         glBindVertexArray(VAO);
 
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(PnuVertexInput), vertices.data(), GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, mesh->vertices.size() * sizeof(PnuVertexInput), mesh->vertices.data(), GL_STATIC_DRAW);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), indices.data(), GL_STATIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh->indices.size() * sizeof(uint32_t), mesh->indices.data(), GL_STATIC_DRAW);
 
         // position attribute
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(PnuVertexInput), (void *) offsetof(PnuVertexInput, position));
@@ -159,7 +196,7 @@ public:
     }
 
     void update() {
-        transform.rotation.z += 0.01;
+
     }
 
     void render() {
@@ -176,26 +213,70 @@ public:
         glBindVertexArray(VAO);
         defaultShader.activateShader();
         defaultShader.setUniform("MVP", camera->P * camera->V * M);
-        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, mesh->indices.size(), GL_UNSIGNED_INT, 0);
 
     }
 
 private:
     unsigned int VBO, EBO, VAO;
-    std::vector<PnuVertexInput> vertices;
-    std::vector<uint32_t> indices;
+
 };
 
+std::vector<int> discretize(Mesh *mesh, glm::vec3 gridSize) {
+    std::vector<int> validIndices;
+    auto cellSize = mesh->size / gridSize;
+    for (PnuVertexInput vertex: mesh->vertices) {
+        auto position = vertex.position - mesh->minBound;
+        glm::ivec3 index = position / cellSize;
+        int linearIndex = index.z * (gridSize.x * gridSize.y) + index.y * gridSize.y + index.x;
+        validIndices.push_back(linearIndex);
+    }
+    std::vector<int>::iterator it;
+    it = std::unique(validIndices.begin(), validIndices.end());
+    validIndices.resize(std::distance(validIndices.begin(), it));
+    return validIndices;
+}
+
+std::vector<int> assignGoals(int agentsNumber, std::vector<int> validGoals) {
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(validGoals.begin(), validGoals.end(), g);
+    std::vector<int> goals;
+    for (int i = 0; i < agentsNumber; i++) {
+        goals.push_back(validGoals[i]);
+    }
+    return goals;
+}
+
 void init() {
+
+    int agentsNumber = 1000;
+    glm::vec3 gridSize = glm::vec3(100, 100, 100);
 
     unsigned int vertex = Shader::createVertexShader(FileLoader::getPath("Resources/Shaders/DefaultVertex.glsl"));
     unsigned int fragment = Shader::createFragmentShader(FileLoader::getPath("Resources/Shaders/DefaultFragment.glsl"));
     defaultShader = Shader(vertex, fragment);
 
     camera = new Camera(glm::vec3(0, 0, 1), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0));
-    MeshRenderer *mesh = new MeshRenderer(Transform({0,0,-2}, {0,0,0}, {1,1,1}), "Resources/Meshes/cylinder.obj");
-    MeshRenderer *mesh1 = new MeshRenderer(Transform({3,0,-2}, {0,0,0}, {1.2,1,1}), "Resources/Meshes/cylinder.obj");
+    Mesh *mesh = new Mesh("Resources/Meshes/ufsm.obj");
+    Mesh *cube = new Mesh("Resources/Meshes/Cube.obj");
+//    MeshRenderer *meshRenderer = new MeshRenderer(Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}), mesh);
 
+
+    auto validIndices = discretize(mesh, gridSize);
+    glm::vec3 cellSize = mesh->size / gridSize;
+
+    auto goals = assignGoals(agentsNumber, validIndices);
+
+    for (auto index: goals) {
+        int indexZ = index / (int) (gridSize.x * gridSize.y);
+        int indexY = index % (int) (gridSize.x * gridSize.y) / (int) gridSize.x;
+        int indexX = index % (int) (gridSize.x * gridSize.y) % (int) gridSize.x;
+        MeshRenderer *meshRenderer = new MeshRenderer(Transform({mesh->minBound.x + (indexX * cellSize.x) + (cellSize.x / 2),
+                                                                 mesh->minBound.y + (indexY * cellSize.y) + (cellSize.y / 2),
+                                                                 mesh->minBound.z + (indexZ * cellSize.z) + (cellSize.z / 2)},
+                                                                {0, 0, 0}, {0.01, 0.01, 0.01}), cube);
+    }
 }
 
 void Callbacks::mouseMovement(double x, double y) {
