@@ -1,0 +1,5 @@
+.vs
+.vscode
+cmake-build-debug
+*.depend
+.idea

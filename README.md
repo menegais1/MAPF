@@ -1,0 +1,2 @@
+Multi Agent Path Finding implemented in OpenGL using the A* algorithm and base meshes representing the final paths the agents should find. 
+The vertices are collapsed into a 3D grid aiming to discretize the environment and simplify the path search.
