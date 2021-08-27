@@ -355,7 +355,7 @@ Node *getSmallestCostNode(std::vector<Node *> &nodes) {
     return leastCostNode;
 }
 
-std::vector<glm::ivec3> getAStarPath(Node *endNode) {
+std::vector<glm::ivec3> getAStarPath(Node *endNode, std::unordered_map<int, std::vector<glm::ivec3>> &collisionTable) {
     std::vector<glm::ivec3> indices;
     indices.push_back(endNode->index);
     Node *curNode = endNode->parent;
@@ -364,6 +364,12 @@ std::vector<glm::ivec3> getAStarPath(Node *endNode) {
         curNode = curNode->parent;
     }
     std::reverse(indices.begin(), indices.end());
+
+    int round = 0;
+    for (auto index: indices) {
+        collisionTable[round].push_back(index);
+        round++;
+    }
     return indices;
 }
 
@@ -377,18 +383,19 @@ void resetNodes(std::unordered_map<glm::ivec3, Node *> &nodes) {
     }
 }
 
-std::vector<glm::ivec3> pathFindingAStar(Node *startNode, Node *endNode) {
+std::vector<glm::ivec3> pathFindingAStar(Node *startNode, Node *endNode, std::unordered_map<int, std::vector<glm::ivec3>> &collisionTable) {
     std::vector<Node *> open;
     std::vector<Node *> closed;
-
+    int round = -1;
     startNode->h_cost = l1_norm(startNode, endNode);
     startNode->g_cost = 0;
     open.push_back(startNode);
     Node *current;
     while (open.size() > 0) {
+        round++;
         current = getSmallestCostNode(open);
 
-        if (current == endNode) return getAStarPath(current);
+        if (current == endNode) return getAStarPath(current, collisionTable);
         auto it = std::remove(open.begin(), open.end(), current);
         open.resize(std::distance(open.begin(), it));
         closed.push_back(current);
@@ -396,7 +403,11 @@ std::vector<glm::ivec3> pathFindingAStar(Node *startNode, Node *endNode) {
             if (std::find(closed.begin(), closed.end(), neighbour) != closed.end()) continue;
             float cost = glm::l1Norm(neighbour->position, current->position) + current->g_cost;
             bool notInOpen = std::find(open.begin(), open.end(), neighbour) == open.end();
-            if (cost < neighbour->g_cost || notInOpen) {
+            bool collision = std::find(collisionTable[round].begin(), collisionTable[round].end(), neighbour->index) != collisionTable[round].end();
+            if (collision) {
+                std::cerr << "UMA COLISÃO FOI ENCONTRADA" << std::endl;
+            }
+            if ((cost < neighbour->g_cost || notInOpen) && !collision) {
                 neighbour->g_cost = cost;
                 neighbour->h_cost = l1_norm(neighbour, endNode);
                 neighbour->parent = current;
@@ -406,9 +417,10 @@ std::vector<glm::ivec3> pathFindingAStar(Node *startNode, Node *endNode) {
                 }
             }
         }
+
     }
 
-    return getAStarPath(current);
+    return getAStarPath(current, collisionTable);
 }
 
 class MAPF : public GameObject {
@@ -457,7 +469,7 @@ void init() {
     defaultShader = Shader(vertex, fragment);
 
     camera = new Camera(glm::vec3(0, 0, 1), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0));
-    Mesh *mesh = new Mesh("Resources/Meshes/IA.obj", Transform({0, 0, 0}, {180, 0, 0}, {1, 1, 1}));
+    Mesh *mesh = new Mesh("Resources/Meshes/ufsm.obj", Transform({0, 0, 0}, {180, 0, 0}, {1, 1, 1}));
     Mesh *cube = new Mesh("Resources/Meshes/Cube.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
 //    MeshRenderer *meshRenderer = new MeshRenderer(Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}), mesh);
     glm::vec3 cellSize = mesh->size / gridSize;
@@ -487,7 +499,6 @@ void init() {
 
     auto validIndices = discretize(mesh, gridSize);
 
-
     std::vector<int> start;
     for (int i = 0; i < agentsNumber; ++i) {
         start.push_back(rand() % (int) (gridSize.x * gridSize.y * gridSize.z));
@@ -495,6 +506,18 @@ void init() {
 
 //    auto goals = assignRandomGoals(agentsNumber, validIndices);
     auto goals = assignClosestGoals(start, validIndices, gridSize);
+
+    std::vector<std::vector<glm::ivec3>> paths;
+    std::unordered_map<int, std::vector<glm::ivec3>> collisionTable;
+
+    for (int i = 0; i < agentsNumber; ++i) {
+        auto startIndex = getGridIndex(start[i], gridSize);
+        auto endIndex = getGridIndex(goals[i], gridSize);
+        auto path = pathFindingAStar(nodes[startIndex], nodes[endIndex], collisionTable);
+        paths.push_back(path);
+        std::cout << "Agent: " << i << " has " << path.size() << std::endl;
+        resetNodes(nodes);
+    }
 
     std::vector<MeshRenderer *> agents;
     for (auto index: start) {
@@ -504,17 +527,6 @@ void init() {
                                                      mesh->minBound.z + (gridIndex.z * cellSize.z) + (cellSize.z / 2)},
                                                     {0, 0, 0}, {0.01, 0.01, 0.01}), cube));
     }
-
-    std::vector<std::vector<glm::ivec3>> paths;
-    for (int i = 0; i < agentsNumber; ++i) {
-        auto startIndex = getGridIndex(start[i], gridSize);
-        auto endIndex = getGridIndex(goals[i], gridSize);
-        auto path = pathFindingAStar(nodes[startIndex], nodes[endIndex]);
-        paths.push_back(path);
-        std::cout << "Agent: " << i << " has " << path.size() << std::endl;
-        resetNodes(nodes);
-    }
-
     MAPF *mapf = new MAPF(agents, paths, mesh, cellSize);
 }
 
