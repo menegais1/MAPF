@@ -248,6 +248,9 @@ int getLinearIndex(glm::ivec3 index, glm::vec3 gridSize) {
     return linearIndex;
 }
 
+/*
+ * Given a mesh, create a grid structure where every cell containing a vertex is marked as valid, returning a list containing the indices of valid grid cells
+ */
 std::vector<int> discretize(Mesh *mesh, glm::vec3 gridSize) {
     std::vector<int> validIndices;
     auto cellSize = mesh->size / gridSize;
@@ -277,6 +280,9 @@ std::vector<int> assignRandomGoals(int agentsNumber, std::vector<int> validGoals
     return goals;
 }
 
+/*
+ * Given a star and end vertices list, this function assign for each start point the closest end point possible and returns a list of size equal to start.size()
+ */
 std::vector<int> assignClosestGoals(std::vector<int> startPositions, std::vector<int> validGoals, glm::vec3 gridSize) {
     std::vector<int> goals;
     std::cout << "Valid goals size: "<< validGoals.size() << std::endl;
@@ -285,10 +291,6 @@ std::vector<int> assignClosestGoals(std::vector<int> startPositions, std::vector
         float closestDist = std::numeric_limits<float>::max();
         int closestGoal = -1;
         for (int j = 0; j < validGoals.size(); ++j) {
-//            if(std::find(goals.begin(), goals.end(), validGoals[j]) != goals.end()){
-//                std::cout << "GOAL J FOI SORTEADO: " << j  << " : "<< validGoals[j]<< std::endl;
-//                continue;
-//            }
             glm::vec3 goalPosition = getGridIndex(validGoals[j], gridSize);
             auto distance = glm::distance(position, goalPosition);
             if (distance < closestDist) {
@@ -304,6 +306,9 @@ std::vector<int> assignClosestGoals(std::vector<int> startPositions, std::vector
     return goals;
 }
 
+/*
+ * Class used to implement a generic graph used in the path finding algorithm
+ */
 struct Node {
 public:
     Node *parent;
@@ -328,6 +333,9 @@ public:
     }
 };
 
+/*
+ * Calculate the neighbours for a node and add them to the neighbours list
+ */
 std::vector<Node *> getNeighbours(std::unordered_map<glm::ivec3, Node *> &nodes, Node *node, glm::vec3 gridSize) {
     std::vector<Node *> neighbours;
     auto nodeIndex = node->index;
@@ -348,6 +356,9 @@ std::vector<Node *> getNeighbours(std::unordered_map<glm::ivec3, Node *> &nodes,
     return neighbours;
 }
 
+/*
+ * Get the node with the lowest F cost in the open list
+ */
 Node *getSmallestCostNode(std::vector<Node *> &nodes) {
     float leastCost = std::numeric_limits<float>::max();
     Node *leastCostNode;
@@ -361,6 +372,9 @@ Node *getSmallestCostNode(std::vector<Node *> &nodes) {
     return leastCostNode;
 }
 
+/*
+ * Get the A* path using the parent hierarchy of each node, filling the collision table with the right information for each step in time
+ */
 std::vector<glm::ivec3> getAStarPath(Node *endNode, std::unordered_map<int, std::vector<glm::ivec3>> &collisionTable) {
     std::vector<glm::ivec3> indices;
     indices.push_back(endNode->index);
@@ -389,6 +403,10 @@ void resetNodes(std::unordered_map<glm::ivec3, Node *> &nodes) {
     }
 }
 
+/* Function that calculates the MAPF for each agent using the A* algorithm with a collision table, receiving a start and end node.
+ * The collision table is used to avoid that two agents occupy the same node
+ * at the same point in time.
+ */
 std::vector<glm::ivec3> pathFindingAStar(Node *startNode, Node *endNode, std::unordered_map<int, std::vector<glm::ivec3>> &collisionTable) {
     std::vector<Node *> open;
     std::vector<Node *> closed;
@@ -429,6 +447,9 @@ std::vector<glm::ivec3> pathFindingAStar(Node *startNode, Node *endNode, std::un
     return getAStarPath(current, collisionTable);
 }
 
+/*
+ * Class used for iterating the agents positions with the keyboard arrows, for visually showing the algorithm execution
+ */
 class MAPF : public GameObject {
 public:
     std::vector<MeshRenderer *> agents;
