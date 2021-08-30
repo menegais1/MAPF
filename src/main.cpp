@@ -23,8 +23,8 @@ Shader defaultShader;
 unsigned int VAO;
 glm::vec2 mousePosition;
 
-float mouseSensitivity = 1;
-float cameraSpeed = 50;
+float mouseSensitivity = 0.8;
+float cameraSpeed = 15;
 
 struct Camera : public GameObject {
 public:
@@ -258,11 +258,11 @@ std::vector<int> discretize(Mesh *mesh, glm::vec3 gridSize) {
         if (index.y >= gridSize.y)index.y = gridSize.y - 1;
         if (index.z >= gridSize.z)index.z = gridSize.z - 1;
         int linearIndex = getLinearIndex(index, gridSize);
-        validIndices.push_back(linearIndex);
+        if(std::find(validIndices.begin(), validIndices.end(), linearIndex) == validIndices.end()){
+            validIndices.push_back(linearIndex);
+        }
     }
-    std::vector<int>::iterator it;
-    it = std::unique(validIndices.begin(), validIndices.end());
-    validIndices.resize(std::distance(validIndices.begin(), it));
+    std::cout << "Valid Indices: "<< validIndices.size() << std::endl;
     return validIndices;
 }
 
@@ -279,12 +279,16 @@ std::vector<int> assignRandomGoals(int agentsNumber, std::vector<int> validGoals
 
 std::vector<int> assignClosestGoals(std::vector<int> startPositions, std::vector<int> validGoals, glm::vec3 gridSize) {
     std::vector<int> goals;
-
+    std::cout << "Valid goals size: "<< validGoals.size() << std::endl;
     for (int i = 0; i < startPositions.size(); i++) {
         glm::vec3 position = getGridIndex(startPositions[i], gridSize);
         float closestDist = std::numeric_limits<float>::max();
         int closestGoal = -1;
         for (int j = 0; j < validGoals.size(); ++j) {
+//            if(std::find(goals.begin(), goals.end(), validGoals[j]) != goals.end()){
+//                std::cout << "GOAL J FOI SORTEADO: " << j  << " : "<< validGoals[j]<< std::endl;
+//                continue;
+//            }
             glm::vec3 goalPosition = getGridIndex(validGoals[j], gridSize);
             auto distance = glm::distance(position, goalPosition);
             if (distance < closestDist) {
@@ -292,6 +296,8 @@ std::vector<int> assignClosestGoals(std::vector<int> startPositions, std::vector
                 closestGoal = j;
             }
         }
+        if(closestGoal == -1) break;
+        std::cout << i << " : " << closestGoal << " " << validGoals[closestGoal] << std::endl;
         goals.push_back(validGoals[closestGoal]);
         validGoals.erase(validGoals.begin() + closestGoal);
     }
@@ -461,7 +467,7 @@ public:
 
 void init() {
 
-    int agentsNumber = 1000;
+    int agentsNumber = 1600;
     glm::vec3 gridSize = glm::vec3(100, 100, 100);
 
     unsigned int vertex = Shader::createVertexShader(FileLoader::getPath("Resources/Shaders/DefaultVertex.glsl"));
@@ -469,9 +475,12 @@ void init() {
     defaultShader = Shader(vertex, fragment);
 
     camera = new Camera(glm::vec3(0, 0, 1), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0));
-    Mesh *mesh = new Mesh("Resources/Meshes/ufsm.obj", Transform({0, 0, 0}, {180, 0, 0}, {1, 1, 1}));
+//    Mesh *mesh = new Mesh("Resources/Meshes/Models/ARC.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
+//    Mesh *mesh = new Mesh("Resources/Meshes/Models/PLANETARIUM.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
+//    Mesh *mesh = new Mesh("Resources/Meshes/Models/UFSM.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
+    Mesh *mesh = new Mesh("Resources/Meshes/Models/IA.obj", Transform({0, 0, 0}, {180, 0, 0}, {1, 1, 1}));
+
     Mesh *cube = new Mesh("Resources/Meshes/Cube.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
-//    MeshRenderer *meshRenderer = new MeshRenderer(Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}), mesh);
     glm::vec3 cellSize = mesh->size / gridSize;
 
 
@@ -496,20 +505,31 @@ void init() {
     }
     //End creation
 
+    std::cout << "Discretizing mesh" << std::endl;
 
     auto validIndices = discretize(mesh, gridSize);
 
+    std::cout << "Setting start points for agents" << std::endl;
+
+    if(validIndices.size() < agentsNumber){
+        agentsNumber = validIndices.size();
+    }
     std::vector<int> start;
     for (int i = 0; i < agentsNumber; ++i) {
-        start.push_back(rand() % (int) (gridSize.x * gridSize.y * gridSize.z));
+        auto index = rand() % (int) (gridSize.x * gridSize.y * gridSize.z);
+        while(std::find(validIndices.begin(), validIndices.end(), index) != validIndices.end() || std::find(start.begin(), start.end(), index) != start.end()){
+            index = rand() % (int) (gridSize.x * gridSize.y * gridSize.z);
+        }
+        start.push_back(index);
     }
 
-//    auto goals = assignRandomGoals(agentsNumber, validIndices);
+    std::cout << "Setting closest end points for agents" << std::endl;
     auto goals = assignClosestGoals(start, validIndices, gridSize);
 
     std::vector<std::vector<glm::ivec3>> paths;
     std::unordered_map<int, std::vector<glm::ivec3>> collisionTable;
 
+    std::cout << "Calculating paths" << std::endl;
     for (int i = 0; i < agentsNumber; ++i) {
         auto startIndex = getGridIndex(start[i], gridSize);
         auto endIndex = getGridIndex(goals[i], gridSize);
