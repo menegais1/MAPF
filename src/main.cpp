@@ -13,6 +13,8 @@
 #include <glm/gtx/norm.hpp>
 #include <iostream>
 #include <random>
+#include <chrono>
+using namespace std::chrono;
 
 
 #define PI        3.14159265358979323846    /* pi */
@@ -488,7 +490,7 @@ public:
 
 void init() {
 
-    int agentsNumber = 1600;
+    int agentsNumber = 1000;
     glm::vec3 gridSize = glm::vec3(100, 100, 100);
 
     unsigned int vertex = Shader::createVertexShader(FileLoader::getPath("Resources/Shaders/DefaultVertex.glsl"));
@@ -498,8 +500,8 @@ void init() {
     camera = new Camera(glm::vec3(0, 0, 1), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0));
 //    Mesh *mesh = new Mesh("Resources/Meshes/Models/ARC.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
 //    Mesh *mesh = new Mesh("Resources/Meshes/Models/PLANETARIUM.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
-//    Mesh *mesh = new Mesh("Resources/Meshes/Models/UFSM.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
-    Mesh *mesh = new Mesh("Resources/Meshes/Models/IA.obj", Transform({0, 0, 0}, {180, 0, 0}, {1, 1, 1}));
+    Mesh *mesh = new Mesh("Resources/Meshes/Models/UFSM.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
+//    Mesh *mesh = new Mesh("Resources/Meshes/Models/IA.obj", Transform({0, 0, 0}, {180, 0, 0}, {1, 1, 1}));
 
     Mesh *cube = new Mesh("Resources/Meshes/Cube.obj", Transform({0, 0, 0}, {0, 0, 0}, {1, 1, 1}));
     glm::vec3 cellSize = mesh->size / gridSize;
@@ -551,6 +553,7 @@ void init() {
     std::unordered_map<int, std::vector<glm::ivec3>> collisionTable;
 
     std::cout << "Calculating paths" << std::endl;
+    auto lastTime = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < agentsNumber; ++i) {
         auto startIndex = getGridIndex(start[i], gridSize);
         auto endIndex = getGridIndex(goals[i], gridSize);
@@ -559,7 +562,10 @@ void init() {
         std::cout << "Agent: " << i << " has " << path.size() << std::endl;
         resetNodes(nodes);
     }
-
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    duration<double> time_span = duration_cast<duration<double>>(currentTime - lastTime);
+    auto deltaTime = time_span.count();
+    std::cout << "THE ALGORITHM TOOK: " << deltaTime << " seconds" << std::endl;
     std::vector<MeshRenderer *> agents;
     for (auto index: start) {
         glm::ivec3 gridIndex = getGridIndex(index, gridSize);

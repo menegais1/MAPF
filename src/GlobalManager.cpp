@@ -35,7 +35,7 @@ void GlobalManager::render() {
     time += deltaTime;
     if (time > lastFpsUpdate + fpsUpdateCycle) {
         fps = 1.0 / deltaTime;
-        std::cout<< "FPS:" << fps << std::endl;
+//        std::cout<< "FPS:" << fps << std::endl;
 
         lastFpsUpdate = time;
     }
@@ -48,7 +48,7 @@ void GlobalManager::render() {
         drawCallsPerFrame++;
     }
 
-    std::cout<< "DrawCalls:" << drawCallsPerFrame << std::endl;
+//    std::cout<< "DrawCalls:" << drawCallsPerFrame << std::endl;
     drawCallsPerFrame = 0;
     cleanUpObjects();
 
